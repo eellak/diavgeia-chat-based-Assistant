@@ -1,0 +1,21 @@
+# Streamlit UI
+streamlit==1.29.0
+plotly==5.18.0
+
+# Core assistant — Gemini via Vertex AI
+google-cloud-aiplatform==1.71.1
+vertexai==1.71.1
+python-dotenv==1.0.1
+
+# Retrieval + session storage
+elasticsearch==7.17.9
+redis==4.1.0
+
+# Data handling
+pandas
+numpy
+
+# Notebook (data processing)
+jupyter
+ipykernel
+PyPDF2

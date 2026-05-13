@@ -1,0 +1,25 @@
+# Secrets
+.env
+secrets/
+*.json
+!streamlit_ui/conversations.json.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# OS
+.DS_Store
+
+# Streamlit local data
+streamlit_ui/conversations.json
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Logs
+*.log

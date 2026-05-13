@@ -1,0 +1,62 @@
+services:
+
+  redis:
+    container_name: redis
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  elasticsearch:
+    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.11.0
+    environment:
+      - xpack.security.enabled=false
+      - "discovery.type=single-node"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - elasticsearch-logs:/usr/share/elasticsearch/logs
+
+  kibana:
+    container_name: kibana
+    image: docker.elastic.co/kibana/kibana:7.11.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+
+  streamlit:
+    container_name: streamlit-ui
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - GOOGLE_CLOUD_PROJECT=llm-reasoning-475315
+      - GOOGLE_CLOUD_LOCATION=us-central1
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-sa.json
+      - GEMINI_MODEL=gemini-2.5-flash
+    volumes:
+      # Put your service-account JSON at ./secrets/gcp-sa.json (gitignored).
+      - ./secrets/gcp-sa.json:/app/secrets/gcp-sa.json:ro
+    depends_on:
+      - elasticsearch
+      - redis
+    ports:
+      - "8501:8501"
+    command: streamlit run streamlit_ui/streamlit_app_demo.py --server.address=0.0.0.0 --server.port=8501
+
+volumes:
+  elasticsearch-data:
+    driver: local
+  elasticsearch-logs:
+    driver: local
+  redis_data:
+    driver: local
