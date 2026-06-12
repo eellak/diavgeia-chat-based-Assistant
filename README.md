@@ -5,12 +5,26 @@ Ask natural-language questions; the assistant retrieves relevant decisions from
 Elasticsearch and answers with **Google Gemini (Vertex AI)**, citing the ΑΔΑ
 number of each document it used.
 
-This repo is the cleaned starting point for an EELLAK-sponsored internship
-extension of the original prototype.
+This repo is the cleaned starting point for an **EELLAK-supported** extension of
+the original prototype. The underlying corpus, extraction pipeline, boilerplate
+analysis, and RAG benchmark are described in our paper — see [Research](#research).
 
 ## Demo
 
+**🔗 Live demo:** http://35.224.220.36:8501 — *DiavgeiaAssistant*, a hosted
+instance answering natural-language questions over ~32K sampled Diavgeia
+decisions (BM25 retrieval + **Gemini 2.5 Flash** via Vertex AI), with multi-turn
+chat and ΑΔΑ citations.
+
 ![Demo: asking the assistant two questions about Diavgeia decisions](docs/demo.gif)
+
+*The recording above shows the previous interface.*
+
+> **Note:** the interface has been redesigned — a new chat layout with
+> right-aligned user messages and a navigation sidebar. The **live demo above
+> already runs this updated UI**; the refreshed Streamlit code and an updated demo
+> recording will be added to this repo shortly. The live demo is a community
+> deployment and may not always be online.
 
 ---
 
@@ -19,7 +33,8 @@ extension of the original prototype.
 ```
 .
 ├── streamlit_ui/
-│   ├── streamlit_app_demo.py     Streamlit chat UI (entry point)
+│   ├── streamlit_app_v2.py       Streamlit chat UI — current interface (entry point)
+│   ├── streamlit_app_demo.py     Earlier UI (kept for reference)
 │   └── assets/                   Bot/user avatars
 │
 ├── diaygeia/                     Assistant Python package
@@ -99,9 +114,33 @@ project deps.
 
 ---
 
+## Research
+
+This assistant accompanies our dataset-and-RAG paper, which introduces a
+**1-million-document** open corpus of Greek government decisions (normalized
+metadata + Markdown text), a reproducible extraction pipeline with a comparative
+OCR/VLM benchmark, a Greek **boilerplate-extraction** method, and the
+evidence-grounded **RAG task** this assistant implements.
+
+> G. Antoniou, G. Filandrianos, A. Vlachos, G. Stamou, L. Kollimenos,
+> K. Skianis, M. Vazirgiannis.
+> *A Greek Government Decisions Dataset for Public-Sector Analysis and Insight.*
+> arXiv:2512.05647, 2025. — https://arxiv.org/abs/2512.05647
+
+```bibtex
+@article{antoniou2025diavgeia,
+  title   = {A Greek Government Decisions Dataset for Public-Sector Analysis and Insight},
+  author  = {Antoniou, Giorgos and Filandrianos, Giorgos and Vlachos, Aggelos and Stamou, Giorgos and Kollimenos, Lampros and Skianis, Konstantinos and Vazirgiannis, Michalis},
+  journal = {arXiv preprint arXiv:2512.05647},
+  year    = {2025}
+}
+```
+
+---
+
 ## Acknowledgements
 
-- [Διαύγεια / Diavgeia](https://diavgeia.gov.gr)
+- [Διαύγεια / Diavgeia](https://diavgeia.gov.gr) — built and operated by **OTS (Open Technology Services)**
 - [Google Gemini](https://ai.google.dev/) · [Vertex AI](https://cloud.google.com/vertex-ai)
 - [Elasticsearch](https://www.elastic.co) · [Streamlit](https://streamlit.io)
 - [EELLAK](https://eellak.gr) 
