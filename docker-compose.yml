@@ -51,7 +51,7 @@ services:
       - redis
     ports:
       - "8501:8501"
-    command: streamlit run streamlit_ui/streamlit_app_demo.py --server.address=0.0.0.0 --server.port=8501
+    command: streamlit run streamlit_ui/streamlit_app_v2.py --server.address=0.0.0.0 --server.port=8501
 
 volumes:
   elasticsearch-data:

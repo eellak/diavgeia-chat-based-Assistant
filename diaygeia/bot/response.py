@@ -65,9 +65,9 @@ class DiaygeiaBot:
             self.logger.error(f"Failed to connect to Elasticsearch: {e}")
             raise
 
-    def get_context(self, question: str):
+    def get_context(self, question: str, k: int = NUM_RESULTS):
         search_query = {"query": {"match": {"content": question}}}
-        resp = self.client.search(index=self.index_name, body=search_query, size=NUM_RESULTS)
+        resp = self.client.search(index=self.index_name, body=search_query, size=k)
         return [{"id": hit['_id'], "content": hit['_source']['content']} for hit in resp['hits']['hits']]
 
     def get_llm_response(self, question, history, context):
