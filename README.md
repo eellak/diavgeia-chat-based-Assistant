@@ -127,6 +127,10 @@ evidence-grounded **RAG task** this assistant implements.
 > *A Greek Government Decisions Dataset for Public-Sector Analysis and Insight.*
 > arXiv:2512.05647, 2025. — https://arxiv.org/abs/2512.05647
 
+> **Note:** an extended version of the paper (with the full extraction benchmark
+> and an online-demo appendix) is currently under review; this section will be
+> updated when it becomes public.
+
 ```bibtex
 @article{antoniou2025diavgeia,
   title   = {A Greek Government Decisions Dataset for Public-Sector Analysis and Insight},
