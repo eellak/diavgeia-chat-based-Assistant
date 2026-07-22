@@ -42,7 +42,8 @@ chat and ΑΔΑ citations.
 │   ├── domain.py                 Conversation dataclass / DataFrame wrapper
 │   ├── session/manage_session.py Redis-backed per-user chat history
 │   ├── data_io/redis/engine.py   Redis connection factory
-│   └── txt_to_index.py           Bulk-index .txt files into Elasticsearch
+│   ├── txt_to_index.py           Bulk-index local .txt files into Elasticsearch
+│   └── index_diavgeia_dataset.py Stream the public glossAPI/diavgeia dataset into ES
 │
 ├── Diaygeia.ipynb                Data-processing notebook
 ├── Dockerfile                    Image used by docker-compose
@@ -92,17 +93,38 @@ docker compose up --build
 This brings up Redis, Elasticsearch, Kibana, and the Streamlit UI.
 UI → http://localhost:8501.
 
-### 3. Index your Diavgeia text files
+### 3. Populate Elasticsearch
 
-The bot has nothing to retrieve until you populate Elasticsearch. Mount a
-folder of `.txt` decisions into the running container and run the indexer:
+The bot has nothing to retrieve until the `diaygeia` index is filled. Two ways:
+
+**Option A — load the public Diavgeia dataset (recommended).**
+Stream documents directly from the open
+[`glossAPI/diavgeia`](https://huggingface.co/datasets/glossAPI/diavgeia) dataset
+(CC BY 4.0) — no local files needed. The dataset is *gated* (auto-approval): open
+the page once and accept the terms, then authenticate with a Hugging Face token.
+With the stack running (so Elasticsearch is reachable on `localhost:9200`):
+
+```bash
+pip install datasets                 # one extra dependency for this loader
+huggingface-cli login                # or: export HF_TOKEN=hf_xxx
+
+# stream + bulk-index the first N documents (start small, grow later)
+python diaygeia/index_diavgeia_dataset.py --limit 2000 --recreate
+python diaygeia/index_diavgeia_dataset.py --limit 50000
+```
+
+The loader indexes each decision's Markdown text (with a Greek analyzer) plus
+structured metadata — ΑΔΑ, organisation, decision type, dates, thematic
+categories. Use `--es <url>` (or `ELASTICSEARCH_URL`) to target a different
+Elasticsearch, and `--help` for all options.
+
+**Option B — index your own `.txt` files.**
+Mount a folder of `.txt` decisions into the running container and run the
+original indexer (adjust the hardcoded `path` at the top of the script first):
 
 ```bash
 docker compose exec streamlit python diaygeia/txt_to_index.py
 ```
-
-(Adjust the hardcoded `path` at the top of `diaygeia/txt_to_index.py` first, or
-edit it to read from an env var.)
 
 ---
 
