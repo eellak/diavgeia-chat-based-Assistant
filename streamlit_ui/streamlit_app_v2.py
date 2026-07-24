@@ -528,10 +528,11 @@ def run_bot_turn(prompt: str):
             bot = st.session_state.bot_instance
             user_history_data = bot.session_manager.get_user_session(st.session_state.session_id)
             history = get_user_history(user_history_data)
-            str_history = "\n".join([item["content"] for item in history])
 
             k = st.session_state.get("num_results", 3)
-            context_results = bot.get_context(str_history + " " + prompt, k=k)
+            # Tier 0 retrieval (multi-field + subject boost). Search on the question
+            # alone — history is still used for generation below, not for search.
+            context_results = bot.get_context_multi(prompt, k=k)
             context = "\n\n".join([str(item) for sublist in context_results for item in sublist.values()])
 
             response = bot.get_llm_response(prompt, history, context)

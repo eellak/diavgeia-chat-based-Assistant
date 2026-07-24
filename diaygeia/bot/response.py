@@ -70,6 +70,19 @@ class DiaygeiaBot:
         resp = self.client.search(index=self.index_name, body=search_query, size=k)
         return [{"id": hit['_id'], "content": hit['_source']['content']} for hit in resp['hits']['hits']]
 
+    def get_context_multi(self, question: str, k: int = NUM_RESULTS):
+        """Tier 0 retrieval: multi-field BM25 over content + subject^2.
+
+        The subject/title is very high-signal for Diavgeia decisions, so boosting it
+        markedly improves retrieval over the single-field `get_context` (kept above as
+        the baseline). Returns the same shape as `get_context`.
+        """
+        search_query = {"query": {"multi_match": {"query": question,
+                                                  "fields": ["content", "subject^2"]}}}
+        resp = self.client.search(index=self.index_name, body=search_query, size=k)
+        return [{"id": hit['_id'], "content": hit['_source'].get('content', '')}
+                for hit in resp['hits']['hits']]
+
     def get_llm_response(self, question, history, context):
         self.logger.warning(f"History: {history}")
 
@@ -100,8 +113,9 @@ class DiaygeiaBot:
     def get_bot_response(self, question, session_id):
         user_history_data = self.session_manager.get_user_session(session_id)
         history = get_user_history(user_history_data)
-        str_history = "\n".join([item['content'] for item in history])
-        context_results = self.get_context(str_history + " " + question)
+        # Tier 0 retrieval (multi-field + subject boost). Search on the question alone —
+        # prepending history pollutes BM25; history is still used for generation below.
+        context_results = self.get_context_multi(question)
         context = "\n\n".join([str(item) for sublist in context_results for item in sublist.values()])
 
         self.logger.warning(f"History: {history}")

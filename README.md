@@ -60,8 +60,10 @@ key — `docker-compose.yml` mounts it read-only into the container.
 ## How it works
 
 1. User asks a question in the Streamlit UI.
-2. `DiaygeiaBot.get_context` runs a BM25 query against the `diaygeia` index in
-   Elasticsearch and pulls the top-k matching decision texts.
+2. `DiaygeiaBot.get_context_multi` runs a multi-field BM25 query — over the
+   decision text and its **boosted `subject`** (the high-signal title) — against
+   the `diaygeia` index in Elasticsearch and pulls the top-k matching decisions.
+   (The original single-field `get_context` is kept as a baseline.)
 3. Recent conversation history is fetched from Redis (compressed JSON keyed by
    `session_id`).
 4. The retrieved context, history, and user question are sent to
