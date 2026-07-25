@@ -24,6 +24,30 @@ else:
 
 NUM_RESULTS = 3
 
+# --- Optional cross-encoder reranking (Tier 1) ---
+# OFF by default. When USE_RERANK=1, get_context_multi over-fetches a Tier-0 pool
+# and re-orders it with a cross-encoder. This needs a Greek-capable model
+# (bge-reranker-v2-m3) plus real RAM/GPU and the `sentence-transformers` package —
+# kept out of requirements.txt to keep the base image lean — so it is meant for a
+# resourced host, not the default laptop container. If the model cannot load,
+# retrieval degrades gracefully to plain Tier-0 order.
+RERANK_ENABLED = os.getenv("USE_RERANK", "0").lower() not in ("0", "false", "no", "")
+RERANK_CANDIDATES = int(os.getenv("RERANK_CANDIDATES", "50"))    # Tier-0 pool for rerank
+RERANK_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+RERANK_CHAR_LIMIT = int(os.getenv("RERANK_CHAR_LIMIT", "2000"))  # chars fed to reranker
+
+_reranker = None
+
+
+def _get_reranker():
+    """Lazily load the cross-encoder so importing this module never fails when the
+    reranker is unused (or sentence-transformers isn't installed)."""
+    global _reranker
+    if _reranker is None:
+        from sentence_transformers import CrossEncoder
+        _reranker = CrossEncoder(RERANK_MODEL, max_length=512)
+    return _reranker
+
 
 def get_user_history(user_history_data: Conversation, limit=5):
     history = []
@@ -70,18 +94,43 @@ class DiaygeiaBot:
         resp = self.client.search(index=self.index_name, body=search_query, size=k)
         return [{"id": hit['_id'], "content": hit['_source']['content']} for hit in resp['hits']['hits']]
 
-    def get_context_multi(self, question: str, k: int = NUM_RESULTS):
+    def get_context_multi(self, question: str, k: int = NUM_RESULTS,
+                          rerank: bool = RERANK_ENABLED,
+                          candidates: int = RERANK_CANDIDATES):
         """Tier 0 retrieval: multi-field BM25 over content + subject^2.
 
         The subject/title is very high-signal for Diavgeia decisions, so boosting it
         markedly improves retrieval over the single-field `get_context` (kept above as
         the baseline). Returns the same shape as `get_context`.
+
+        Tier 1 (optional, `rerank=True` / USE_RERANK=1): over-fetch `candidates` and
+        re-order them with a cross-encoder, keeping the true top-k. Opt-in and heavy;
+        if the reranker cannot load, it degrades gracefully to Tier-0 order.
         """
+        size = candidates if rerank else k
         search_query = {"query": {"multi_match": {"query": question,
                                                   "fields": ["content", "subject^2"]}}}
-        resp = self.client.search(index=self.index_name, body=search_query, size=k)
-        return [{"id": hit['_id'], "content": hit['_source'].get('content', '')}
-                for hit in resp['hits']['hits']]
+        resp = self.client.search(index=self.index_name, body=search_query, size=size)
+        hits = resp['hits']['hits']
+        if not hits:
+            return []
+
+        docs = [{"id": h['_id'], "content": h['_source'].get('content', '')} for h in hits]
+        if rerank:
+            try:
+                reranker = _get_reranker()
+                pairs = []
+                for h in hits:
+                    subject = h['_source'].get('subject') or ''
+                    body = h['_source'].get('content') or ''
+                    pairs.append((question, (subject + "\n" + body)[:RERANK_CHAR_LIMIT]))
+                scores = reranker.predict(pairs)
+                order = sorted(range(len(docs)), key=lambda i: scores[i], reverse=True)
+                docs = [docs[i] for i in order]
+            except Exception as e:  # noqa: BLE001 — never let reranking break retrieval
+                self.logger.warning(f"Reranker unavailable ({e}); using Tier-0 order")
+
+        return docs[:k]
 
     def get_llm_response(self, question, history, context):
         self.logger.warning(f"History: {history}")

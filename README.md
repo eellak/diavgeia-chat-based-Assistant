@@ -73,6 +73,26 @@ key — `docker-compose.yml` mounts it read-only into the container.
 
 ---
 
+## Optional: cross-encoder reranking (Tier 1)
+
+Retrieval is multi-field BM25 by default. For higher precision on vague or
+paraphrased questions, you can optionally re-rank the top BM25 candidates with a
+multilingual **cross-encoder**:
+
+```bash
+export USE_RERANK=1                             # off by default
+export RERANKER_MODEL=BAAI/bge-reranker-v2-m3   # Greek-capable (default)
+pip install sentence-transformers               # extra dep, kept out of the base image
+```
+
+`get_context_multi` then over-fetches a pool of BM25 hits and re-orders them with
+the cross-encoder, keeping the true top-k. It is **heavy** (a large model plus
+RAM/GPU) and intended for a resourced host — **not** the default laptop container;
+if the model cannot load, retrieval falls back to plain BM25 order. In our testing
+`bge-reranker-v2-m3` handled Greek well, while smaller/base rerankers hurt results.
+
+---
+
 ## Running
 
 ### 1. Drop your GCP service-account JSON into `secrets/`
