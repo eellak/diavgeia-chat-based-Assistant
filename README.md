@@ -107,7 +107,7 @@ the page once and accept the terms, then authenticate with a Hugging Face token.
 With the stack running (so Elasticsearch is reachable on `localhost:9200`):
 
 ```bash
-pip install datasets                 # one extra dependency for this loader
+pip install datasets                 # already in requirements.txt / the image — needed only when running on the host
 huggingface-cli login                # or: export HF_TOKEN=hf_xxx
 
 # stream + bulk-index the first N documents (start small, grow later)
