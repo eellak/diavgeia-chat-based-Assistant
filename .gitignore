@@ -23,3 +23,6 @@ streamlit_ui/conversations.json
 
 # Logs
 *.log
+
+# Diavgeia OpenData id->name cache (index-specific; warm at runtime)
+diaygeia/aggregation/.diavgeia_cache/

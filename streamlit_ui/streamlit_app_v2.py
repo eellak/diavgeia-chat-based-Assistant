@@ -530,12 +530,15 @@ def run_bot_turn(prompt: str):
             history = get_user_history(user_history_data)
 
             k = st.session_state.get("num_results", 3)
-            # Tier 0 retrieval (multi-field + subject boost). Search on the question
-            # alone — history is still used for generation below, not for search.
-            context_results = bot.get_context_multi(prompt, k=k)
-            context = "\n\n".join([str(item) for sublist in context_results for item in sublist.values()])
-
-            response = bot.get_llm_response(prompt, history, context)
+            context = ""  # retrieved-doc context — only set on the RAG path below
+            # Structured path first: countable questions ("how many / by type / by org /
+            # by date") get an exact aggregation answer; None -> fall back to RAG.
+            response = bot.try_structured(prompt)
+            if response is None:
+                # Tier 0 retrieval (multi-field + subject boost) + generation.
+                context_results = bot.get_context_multi(prompt, k=k)
+                context = "\n\n".join([str(item) for sublist in context_results for item in sublist.values()])
+                response = bot.get_llm_response(prompt, history, context)
 
             bot.session_manager.update_user_session(
                 st.session_state.session_id,

@@ -5,10 +5,11 @@ from dotenv import load_dotenv
 from elasticsearch import Elasticsearch, ConnectionError
 
 import vertexai
-from vertexai.generative_models import GenerativeModel
+from vertexai.generative_models import GenerativeModel, GenerationConfig
 
 from diaygeia.domain import Conversation
 from diaygeia.session.manage_session import SessionManager
+from diaygeia.aggregation import structured_query as sq
 
 load_dotenv()
 
@@ -21,6 +22,17 @@ if GCP_PROJECT:
     gemini_model = GenerativeModel(GEMINI_MODEL)
 else:
     gemini_model = None
+
+
+def _gemini_generate(prompt):
+    """Deterministic plain-text generation via Gemini — used for structured-query
+    intent detection (temperature 0 for stable JSON specs)."""
+    if gemini_model is None:
+        raise RuntimeError("Gemini not configured")
+    resp = gemini_model.generate_content(
+        prompt, generation_config=GenerationConfig(temperature=0))
+    return (resp.text or "").strip()
+
 
 NUM_RESULTS = 3
 
@@ -159,9 +171,39 @@ class DiaygeiaBot:
         response = gemini_model.generate_content(prompt)
         return (response.text or "").strip()
 
+    def try_structured(self, question):
+        """Return an exact structured answer for a countable question, else None.
+
+        Detects a countable/aggregation question (LLM), runs an Elasticsearch
+        aggregation over the metadata, and formats a grounded Greek answer with
+        names resolved. None means "not a structured question" → caller uses RAG.
+        Any failure returns None (safe fallback).
+        """
+        try:
+            spec = sq.build_spec(question, _gemini_generate)
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"structured intent detection failed: {e}")
+            return None
+        if not spec:
+            return None
+        try:
+            return sq.answer(self.client, self.index_name, spec)
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"structured query failed ({e}); using RAG")
+            return None
+
     def get_bot_response(self, question, session_id):
         user_history_data = self.session_manager.get_user_session(session_id)
         history = get_user_history(user_history_data)
+
+        # Structured path first: countable questions get an exact ES aggregation
+        # (names resolved) instead of the LLM guessing numbers; None -> RAG below.
+        structured = self.try_structured(question)
+        if structured is not None:
+            self.session_manager.update_user_session(
+                session_id, user_history_data, question, structured)
+            return structured
+
         # Tier 0 retrieval (multi-field + subject boost). Search on the question alone —
         # prepending history pollutes BM25; history is still used for generation below.
         context_results = self.get_context_multi(question)

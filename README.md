@@ -43,7 +43,8 @@ chat and ΑΔΑ citations.
 │   ├── session/manage_session.py Redis-backed per-user chat history
 │   ├── data_io/redis/engine.py   Redis connection factory
 │   ├── txt_to_index.py           Bulk-index local .txt files into Elasticsearch
-│   └── index_diavgeia_dataset.py Stream the public glossAPI/diavgeia dataset into ES
+│   ├── index_diavgeia_dataset.py Stream the public glossAPI/diavgeia dataset into ES
+│   └── aggregation/              Structured metadata queries + Diavgeia OpenData name lookups
 │
 ├── Diaygeia.ipynb                Data-processing notebook
 ├── Dockerfile                    Image used by docker-compose
@@ -60,16 +61,57 @@ key — `docker-compose.yml` mounts it read-only into the container.
 ## How it works
 
 1. User asks a question in the Streamlit UI.
-2. `DiaygeiaBot.get_context_multi` runs a multi-field BM25 query — over the
-   decision text and its **boosted `subject`** (the high-signal title) — against
-   the `diaygeia` index in Elasticsearch and pulls the top-k matching decisions.
-   (The original single-field `get_context` is kept as a baseline.)
-3. Recent conversation history is fetched from Redis (compressed JSON keyed by
+2. **Structured path first** (`DiaygeiaBot.try_structured`): if the question is
+   *countable* ("how many / by type / by org / in period Z") it is answered by an
+   exact Elasticsearch **aggregation** over the metadata — not by the LLM — and
+   returned immediately (see [Structured queries](#structured-queries-counts--aggregations)).
+   Otherwise it falls through to retrieval:
+3. `DiaygeiaBot.get_context_multi` runs a multi-field BM25 query — over the decision
+   text and its **boosted `subject`** (the high-signal title) — against the
+   `diaygeia` index and pulls the top-k matching decisions. (The single-field
+   `get_context` is kept as a baseline.)
+4. Recent conversation history is fetched from Redis (compressed JSON keyed by
    `session_id`).
-4. The retrieved context, history, and user question are sent to
-   **Gemini (Vertex AI)**, which produces an answer that includes the ΑΔΑ of
-   each document it relied on.
-5. The new turn is appended to Redis history.
+5. The retrieved context, history, and user question are sent to **Gemini
+   (Vertex AI)**, which answers with the ΑΔΑ of each document it relied on.
+6. The new turn is appended to Redis history.
+
+---
+
+## Structured queries (counts & aggregations)
+
+RAG is great at *"what does a decision say"* but weak at *"how many"* — the LLM only
+sees the top-k snippets and can't count across the corpus. So **countable questions
+are routed to Elasticsearch instead of the LLM**:
+
+- `diaygeia/aggregation/structured_query.py` — `build_spec` (Gemini, temperature 0)
+  turns a Greek question into a query spec, run as an ES **`count`** or **`terms`
+  (group-by)** with filters on decision type, organisation, thematic category and
+  **issue-date range**. Non-countable questions return `None` → RAG.
+- `diaygeia/aggregation/diavgeia_lookup.py` — resolves the opaque metadata IDs to
+  human names via the public **Diavgeia OpenData API** (`/opendata/types`,
+  `/opendata/organizations/{id}`), cached on disk, so answers read *"98 αποφάσεις του
+  ΕΚΕΤΑ"* and a user can filter by an organisation's name.
+
+Examples that now get exact, grounded answers:
+
+```
+πόσες αποφάσεις εξέδωσε το ΕΚΕΤΑ;             → 98
+ποια είναι η κατανομή των αποφάσεων ανά τύπο;  → Γ.3.2: 1.544 · Ε.4: 456
+πόσες αποφάσεις τον Σεπτέμβριο 2025;           → 432
+```
+
+**Name resolution needs a warm cache.** After indexing, resolve the organisation ids
+present in your index once (idempotent; cached to a gitignored `.diavgeia_cache/`):
+
+```python
+from elasticsearch import Elasticsearch
+from diaygeia.aggregation import diavgeia_lookup as lk
+lk.warm_org_cache(Elasticsearch("http://localhost:9200"), "diaygeia")
+```
+
+Only counting/filtering is supported — the dataset metadata has no monetary amounts,
+so "total spent" sums are out of scope.
 
 ---
 
