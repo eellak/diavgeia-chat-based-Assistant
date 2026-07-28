@@ -10,6 +10,7 @@ from vertexai.generative_models import GenerativeModel, GenerationConfig
 from diaygeia.domain import Conversation
 from diaygeia.session.manage_session import SessionManager
 from diaygeia.aggregation import structured_query as sq
+from diaygeia import grounding
 
 load_dotenv()
 
@@ -151,8 +152,12 @@ class DiaygeiaBot:
             raise RuntimeError("Gemini not configured. Set GOOGLE_CLOUD_PROJECT and credentials.")
 
         system_prompt = (
-            "You are a helpful assistant for answering questions about Diavgeia Greek government documents. "
-            "Given a question, provide the answer along with the ADA number of the document in this form ΑΔΑ:XXXXXXXXXXXXXXX."
+            "You are an assistant for Greek government decisions (Διαύγεια). "
+            "Answer the user's question ONLY from the information in the retrieved context below. "
+            "If the context does not contain enough information to answer, say clearly in Greek that "
+            "you do not have enough information — do NOT invent facts or ΑΔΑ numbers. "
+            "Cite the ΑΔΑ of each decision you rely on, exactly as it appears in the context, "
+            "in the form ΑΔΑ:XXXXXXXXXXXXXXX. Reply in Greek."
         )
         history_text = "\n".join([f"{m['role']}: {m['content']}" for m in history]) if history else ""
         prompt = f"""
@@ -207,14 +212,19 @@ class DiaygeiaBot:
         # Tier 0 retrieval (multi-field + subject boost). Search on the question alone —
         # prepending history pollutes BM25; history is still used for generation below.
         context_results = self.get_context_multi(question)
-        context = "\n\n".join([str(item) for sublist in context_results for item in sublist.values()])
-
         self.logger.warning(f"History: {history}")
-        completion = None
-        try:
-            completion = self.get_llm_response(question, history, context)
-        except Exception as e:
-            self.logger.error(f"LLM error: {e}")
+        if not context_results:
+            # Grounding: nothing retrieved → say so instead of hallucinating.
+            completion = grounding.INSUFFICIENT
+        else:
+            context = "\n\n".join([str(item) for sublist in context_results for item in sublist.values()])
+            completion = grounding.INSUFFICIENT
+            try:
+                completion = self.get_llm_response(question, history, context)
+                # Turn cited ΑΔΑs (only the retrieved ones) into clickable source links.
+                completion = grounding.linkify_adas(completion, [r["id"] for r in context_results])
+            except Exception as e:
+                self.logger.error(f"LLM error: {e}")
 
         self.session_manager.update_user_session(
             session_id, user_history_data, question, completion

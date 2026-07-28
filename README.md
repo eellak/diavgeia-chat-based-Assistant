@@ -44,7 +44,8 @@ chat and ΑΔΑ citations.
 │   ├── data_io/redis/engine.py   Redis connection factory
 │   ├── txt_to_index.py           Bulk-index local .txt files into Elasticsearch
 │   ├── index_diavgeia_dataset.py Stream the public glossAPI/diavgeia dataset into ES
-│   └── aggregation/              Structured metadata queries + Diavgeia OpenData name lookups
+│   ├── aggregation/              Structured metadata queries + Diavgeia OpenData name lookups
+│   └── grounding.py              Source links, ΑΔΑ citations, insufficient-evidence reply
 │
 ├── Diaygeia.ipynb                Data-processing notebook
 ├── Dockerfile                    Image used by docker-compose
@@ -73,7 +74,9 @@ key — `docker-compose.yml` mounts it read-only into the container.
 4. Recent conversation history is fetched from Redis (compressed JSON keyed by
    `session_id`).
 5. The retrieved context, history, and user question are sent to **Gemini
-   (Vertex AI)**, which answers with the ΑΔΑ of each document it relied on.
+   (Vertex AI)**, instructed to answer **only from that context** (or say it doesn't
+   have enough information) and to cite the ΑΔΑ of each decision it used — those ΑΔΑs
+   become clickable links to diavgeia.gov.gr (see [Grounding & citations](#grounding--citations)).
 6. The new turn is appended to Redis history.
 
 ---
@@ -112,6 +115,22 @@ lk.warm_org_cache(Elasticsearch("http://localhost:9200"), "diaygeia")
 
 Only counting/filtering is supported — the dataset metadata has no monetary amounts,
 so "total spent" sums are out of scope.
+
+---
+
+## Grounding & citations
+
+To keep answers trustworthy, the RAG path (`diaygeia/grounding.py`) adds three things:
+
+- **Clickable sources** — every ΑΔΑ the model cites becomes a link to the official
+  decision (`https://diavgeia.gov.gr/doc/{ada}`), but **only for ΑΔΑs that were
+  actually retrieved** — a hallucinated id is never linked.
+- **"I don't know" instead of guessing** — the generation prompt tells Gemini to
+  answer *only* from the retrieved context and otherwise say it lacks the
+  information; if retrieval returns nothing, a fixed insufficient-evidence reply is
+  used and the LLM isn't called at all.
+- **Evidence panel** — toggle "Εμφάνιση context (πηγών)" in the sidebar to see the
+  exact decisions behind each answer (ΑΔΑ links + snippets).
 
 ---
 

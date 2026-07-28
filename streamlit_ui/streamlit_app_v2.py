@@ -23,6 +23,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from diaygeia.bot.response import DiaygeiaBot, get_user_history
+from diaygeia import grounding
 
 # ----------------------------------------------------------------------------
 # Setup
@@ -530,15 +531,21 @@ def run_bot_turn(prompt: str):
             history = get_user_history(user_history_data)
 
             k = st.session_state.get("num_results", 3)
-            context = ""  # retrieved-doc context — only set on the RAG path below
+            context = ""            # raw retrieved-doc context (RAG path only)
+            context_results = []    # retrieved docs, for the sources / evidence panel
             # Structured path first: countable questions ("how many / by type / by org /
             # by date") get an exact aggregation answer; None -> fall back to RAG.
             response = bot.try_structured(prompt)
             if response is None:
                 # Tier 0 retrieval (multi-field + subject boost) + generation.
                 context_results = bot.get_context_multi(prompt, k=k)
-                context = "\n\n".join([str(item) for sublist in context_results for item in sublist.values()])
-                response = bot.get_llm_response(prompt, history, context)
+                if not context_results:
+                    response = grounding.INSUFFICIENT   # nothing retrieved -> don't hallucinate
+                else:
+                    context = "\n\n".join([str(item) for sublist in context_results for item in sublist.values()])
+                    response = bot.get_llm_response(prompt, history, context)
+                    # cite the retrieved ΑΔΑs as clickable source links
+                    response = grounding.linkify_adas(response, [r["id"] for r in context_results])
 
             bot.session_manager.update_user_session(
                 st.session_state.session_id,
@@ -561,6 +568,7 @@ def run_bot_turn(prompt: str):
                 "role": "assistant",
                 "content": response,
                 "context": context,
+                "sources": context_results,
             })
             save_current_conversation()
         except Exception as e:
@@ -707,12 +715,14 @@ if st.session_state.page == "chat":
         else:
             with st.chat_message("assistant", avatar=BOT_AVATAR):
                 st.markdown(message["content"])
-                if (
-                    st.session_state.get("show_context", False)
-                    and "context" in message
+                if st.session_state.get("show_context", False) and (
+                    message.get("sources") or message.get("context")
                 ):
                     with st.expander("📄  Πηγές & context που χρησιμοποιήθηκαν"):
-                        st.code(message["context"], language=None)
+                        if message.get("sources"):
+                            st.markdown(grounding.sources_markdown(message["sources"]))
+                        else:
+                            st.code(message["context"], language=None)
 
     # Handle pending prompt from suggested chips
     if st.session_state.pending_prompt:
