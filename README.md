@@ -134,6 +134,38 @@ To keep answers trustworthy, the RAG path (`diaygeia/grounding.py`) adds three t
 
 ---
 
+## Evaluation
+
+The upgrades were measured **head-to-head against the original prototype on the same
+index** — only the *system* changes (retrieval field, generation prompt, structured
+routing), never the data or the model (`gemini-2.5-flash` for both), so any difference is
+attributable to the upgrades. Ground truth for the count questions comes straight from
+Elasticsearch; refusals are checked against a fixed off-topic set; the retrieval set is 50
+auto-generated natural-language questions, each paraphrasing a decision's title with that
+decision as the gold answer.
+
+On a **50,000-document** index:
+
+| Metric | Old (prototype) | New (upgraded) |
+|---|---|---|
+| Retrieval recall@5 | 46% | **66%** |
+| Retrieval MRR | 0.37 | **0.59** |
+| Quantitative exact-match | 0% | **92%** |
+| Refusal on off-topic questions | 0% | **88%** |
+
+- **Quantitative** is the headline: the prototype cannot count across the corpus (0 of 13
+  count questions correct); the structured path answers exactly (12 of 13) — the concrete
+  fix for the quantitative weakness.
+- **Retrieval**: boosting the high-signal title (`subject`) field recovers about one in
+  five more correct documents in the top-5, and ranks them higher.
+- **Grounding**: the prototype answered every off-topic question from its own knowledge
+  (0 refusals); the new system declines 7 of 8.
+
+*(The evaluation harness itself is kept out of the repo — this section reports its
+results.)*
+
+---
+
 ## Optional: cross-encoder reranking (Tier 1)
 
 Retrieval is multi-field BM25 by default. For higher precision on vague or
