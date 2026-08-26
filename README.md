@@ -12,19 +12,31 @@ analysis, and RAG benchmark are described in our paper — see [Research](#resea
 ## Demo
 
 **🔗 Live demo:** http://35.224.220.36:8501 — *DiavgeiaAssistant*, a hosted
-instance answering natural-language questions over ~32K sampled Diavgeia
-decisions (BM25 retrieval + **Gemini 2.5 Flash** via Vertex AI), with multi-turn
-chat and ΑΔΑ citations.
+instance over **50,000 real Διαύγεια decisions** (indexed with a Greek analyzer +
+structured metadata), answering with **Gemini (Vertex AI)**. It runs the full
+upgrade set described in this README:
 
-![Demo: asking the assistant two questions about Diavgeia decisions](docs/demo.gif)
+- **Grounded answers with clickable citations** — every cited ΑΔΑ links to the
+  official decision on `diavgeia.gov.gr`, and the assistant **declines when the
+  evidence isn't there** instead of hallucinating.
+- **Exact structured answers** for quantitative questions — *"how many decisions
+  did organisation X issue / of type Y / in period Z?"* are computed by a database
+  **aggregation over the metadata**, not guessed by the model.
+- **Multi-field retrieval** (decision text + boosted title) for *"find / what does
+  it say?"* questions.
 
-*The recording above shows the previous interface.*
+**Try asking (in Greek):**
 
-> **Note:** the interface has been redesigned — a new chat layout with
-> right-aligned user messages and a navigation sidebar. The **live demo above
-> already runs this updated UI**; the refreshed Streamlit code and an updated demo
-> recording will be added to this repo shortly. The live demo is a community
-> deployment and may not always be online.
+```
+πόσες αποφάσεις εξέδωσε ο ΕΚΕΤΑ;        →  exact count, organisation name resolved
+τι λέει η απόφαση για το Ωδείο Πάρου;    →  grounded answer with clickable ΑΔΑ links
+ποια είναι η πρωτεύουσα της Γαλλίας;      →  politely declines (grounded refusal)
+```
+
+![Demo recording](docs/demo.gif)
+
+*The recording predates these upgrades and shows an earlier interface. The live
+demo is a community deployment and may not always be online.*
 
 ---
 
