@@ -296,4 +296,16 @@ evidence-grounded **RAG task** this assistant implements.
 - [Διαύγεια / Diavgeia](https://diavgeia.gov.gr) — built and operated by **OTS (Open Technology Services)**
 - [Google Gemini](https://ai.google.dev/) · [Vertex AI](https://cloud.google.com/vertex-ai)
 - [Elasticsearch](https://www.elastic.co) · [Streamlit](https://streamlit.io)
-- [EELLAK](https://eellak.gr) 
+- [EELLAK](https://eellak.gr)
+
+---
+
+## License
+
+This project uses two licenses, one for code and one for documentation:
+
+- **Source code** — [**EUPL v1.2**](LICENSE) (European Union Public Licence).
+- **Documentation** (README, wiki, reports, diagrams and other non-code content) —
+  [**CC BY-SA 4.0**](LICENSE-docs.md) ([summary](https://creativecommons.org/licenses/by-sa/4.0/)).
+
+The bundled/open dataset is redistributed under its own upstream license (see the dataset card). 
