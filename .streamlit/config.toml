@@ -1,0 +1,11 @@
+# Pin a fixed light theme so the app's appearance is INDEPENDENT of the viewer's
+# OS/browser light-or-dark setting. Without this, Streamlit follows the system
+# preference and renders its dark base, which broke the custom (light) design
+# (black boxes on secondary buttons, invisible white-on-light labels).
+# Colors mirror the app's palette (streamlit_app_v2.py: PRIMARY / SOFT_BG / TEXT_MAIN ...).
+[theme]
+base = "light"
+primaryColor = "#4F46E5"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F7FB"
+textColor = "#1F2937"

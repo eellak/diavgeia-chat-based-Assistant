@@ -396,9 +396,44 @@ st.markdown(f"""
         border-top: 1px solid {BORDER};
     }}
 
+    /* --- Theme hardening: keep the design identical regardless of the viewer's
+       light/dark system setting; every custom surface sets its own bg + text colour
+       so a dark base can never bleed through. --- */
+    /* Secondary buttons: sidebar conversations, Chat/Στατ/Info nav, suggested queries */
+    .stButton>button[kind="secondary"] {{
+        background: {CARD_BG} !important;
+        color: {TEXT_MAIN} !important;
+        border: 1px solid {BORDER} !important;
+    }}
+    .stButton>button[kind="secondary"] p,
+    .stButton>button[kind="secondary"] span {{
+        color: {TEXT_MAIN} !important;
+    }}
+    /* Expanders (Προτιμήσεις · Πηγές & context) */
+    [data-testid="stExpander"] {{
+        background: {CARD_BG} !important;
+        border: 1px solid {BORDER} !important;
+        border-radius: 12px !important;
+    }}
+    [data-testid="stExpander"] summary, [data-testid="stExpander"] summary *,
+    [data-testid="stExpander"] p, [data-testid="stExpander"] li,
+    [data-testid="stExpander"] label {{
+        color: {TEXT_MAIN} !important;
+    }}
+    /* Spinner text ("Σκέφτομαι…") */
+    [data-testid="stSpinner"], [data-testid="stSpinner"] * {{
+        color: {TEXT_MAIN} !important;
+    }}
+    /* Sidebar widget labels (slider / checkbox text in Προτιμήσεις) */
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] * {{
+        color: {TEXT_MAIN} !important;
+    }}
+
     /* Hide Streamlit chrome we don't need */
     #MainMenu {{ visibility: hidden; }}
     footer {{ visibility: hidden; }}
+    .stDeployButton, [data-testid="stToolbar"] {{ display: none !important; }}
 </style>
 """, unsafe_allow_html=True)
 
