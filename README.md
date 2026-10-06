@@ -11,10 +11,9 @@ analysis, and RAG benchmark are described in our paper — see [Research](#resea
 
 ## Demo
 
-**🔗 Live demo:** http://35.224.220.36:8501 — *DiavgeiaAssistant*, a hosted
-instance over **50,000 real Διαύγεια decisions** (indexed with a Greek analyzer +
-structured metadata), answering with **Gemini (Vertex AI)**. It runs the full
-upgrade set described in this README:
+*DiavgeiaAssistant* answers questions over real Διαύγεια decisions (indexed with a
+Greek analyzer + structured metadata), using **Gemini (Vertex AI)**. Run it locally
+with the steps in [Running](#running). It includes:
 
 - **Grounded answers with clickable citations** — every cited ΑΔΑ links to the
   official decision on `diavgeia.gov.gr`, and the assistant **declines when the
@@ -35,8 +34,7 @@ upgrade set described in this README:
 
 ![Demo recording](docs/demo.gif)
 
-*The recording predates these upgrades and shows an earlier interface. The live
-demo is a community deployment and may not always be online.*
+*The recording predates these upgrades and shows an earlier interface.*
 
 ---
 
@@ -46,7 +44,6 @@ demo is a community deployment and may not always be online.*
 .
 ├── streamlit_ui/
 │   ├── streamlit_app_v2.py       Streamlit chat UI — current interface (entry point)
-│   ├── streamlit_app_demo.py     Earlier UI (kept for reference)
 │   └── assets/                   Bot/user avatars
 │
 ├── diaygeia/                     Assistant Python package
@@ -61,13 +58,16 @@ demo is a community deployment and may not always be online.*
 │
 ├── Diaygeia.ipynb                Data-processing notebook
 ├── Dockerfile                    Image used by docker-compose
-├── docker-compose.yml            redis + elasticsearch + kibana + streamlit
+├── docker-compose.yml            redis + elasticsearch + kibana + streamlit (auth on, localhost-only)
+├── .env.example                  Template for the service passwords (copy to .env)
+├── .dockerignore                 Keeps .env / secrets/ out of the Docker image
 ├── requirements.txt              Python deps
 └── .gitignore
 ```
 
 A `secrets/gcp-sa.json` file (gitignored) must hold your GCP service-account
-key — `docker-compose.yml` mounts it read-only into the container.
+key — `docker-compose.yml` mounts it read-only into the container. A `.env` file
+(gitignored, created from `.env.example`) holds the Elasticsearch and Redis passwords.
 
 ---
 
@@ -117,12 +117,15 @@ Examples that now get exact, grounded answers:
 ```
 
 **Name resolution needs a warm cache.** After indexing, resolve the organisation ids
-present in your index once (idempotent; cached to a gitignored `.diavgeia_cache/`):
+present in your index once (idempotent; cached to a gitignored `.diavgeia_cache/`),
+with `ELASTIC_PASSWORD` exported from your `.env`:
 
 ```python
+import os
 from elasticsearch import Elasticsearch
 from diaygeia.aggregation import diavgeia_lookup as lk
-lk.warm_org_cache(Elasticsearch("http://localhost:9200"), "diaygeia")
+es = Elasticsearch("http://localhost:9200", http_auth=("elastic", os.environ["ELASTIC_PASSWORD"]))
+lk.warm_org_cache(es, "diaygeia")
 ```
 
 Only counting/filtering is supported — the dataset metadata has no monetary amounts,
@@ -211,16 +214,27 @@ cp /path/to/your-service-account.json secrets/gcp-sa.json
 container. The GCP project ID and Gemini model are already set in the compose
 file — edit them there if you need different values.
 
-### 2. Build and start the stack
+### 2. Set the service passwords in `.env`
+
+Elasticsearch and Redis run with authentication. Create your `.env` from the
+template and fill in strong random values (compose refuses to start without them):
+
+```bash
+cp .env.example .env
+openssl rand -hex 24      # run twice: paste one into ELASTIC_PASSWORD, one into REDIS_PASSWORD
+```
+
+### 3. Build and start the stack
 
 ```bash
 docker compose up --build
 ```
 
 This brings up Redis, Elasticsearch, Kibana, and the Streamlit UI.
-UI → http://localhost:8501.
+UI → http://localhost:8501 · Kibana → http://localhost:5601 (log in as `elastic`).
+Every port is bound to `127.0.0.1`, and Redis is not published on the host at all.
 
-### 3. Populate Elasticsearch
+### 4. Populate Elasticsearch
 
 The bot has nothing to retrieve until the `diaygeia` index is filled. Two ways:
 
@@ -229,9 +243,10 @@ Stream documents directly from the open
 [`glossAPI/diavgeia`](https://huggingface.co/datasets/glossAPI/diavgeia) dataset
 (CC BY 4.0) — no local files needed. The dataset is *gated* (auto-approval): open
 the page once and accept the terms, then authenticate with a Hugging Face token.
-With the stack running (so Elasticsearch is reachable on `localhost:9200`):
+With the stack running (Elasticsearch on `localhost:9200`, password-protected):
 
 ```bash
+set -a; source .env; set +a          # export ELASTIC_PASSWORD for the host-side scripts
 pip install datasets                 # already in requirements.txt / the image — needed only when running on the host
 huggingface-cli login                # or: export HF_TOKEN=hf_xxx
 
@@ -252,6 +267,23 @@ original indexer (adjust the hardcoded `path` at the top of the script first):
 ```bash
 docker compose exec streamlit python diaygeia/txt_to_index.py
 ```
+
+---
+
+## Security
+
+- **Authentication on.** Elasticsearch and Redis require passwords, set in `.env`
+  (gitignored). The app, Kibana and the host-side scripts read them from the environment.
+- **No exposed services.** Redis is reachable only on the internal Docker network;
+  Elasticsearch, Kibana and the UI listen on `127.0.0.1` only.
+- **Isolated sessions.** Each browser session sees only its own chats — nothing is
+  shared on disk, and the session id is generated server-side (never taken from the
+  URL). The bot's per-session history in Redis expires after 24 h (`SESSION_TTL_SECONDS`).
+- **No secrets in images.** `.dockerignore` keeps `.env` and `secrets/` out of the
+  Docker image; the GCP key is mounted at runtime instead.
+- **Deploying publicly?** Don't publish the service ports. Put the UI behind a reverse
+  proxy with TLS (and authentication if access should be restricted), and keep
+  Elasticsearch and Redis on the internal network.
 
 ---
 
