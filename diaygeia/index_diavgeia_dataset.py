@@ -12,6 +12,10 @@ you can start with a few thousand and grow the index later.
 
 Each row provides:  id (ADA) · markdown_text (content) · metadata_json (fields).
 
+Elasticsearch runs with authentication: export the password from your .env first
+(e.g.  set -a; source .env; set +a ). ELASTIC_PASSWORD or ELASTICSEARCH_PASSWORD
+is read; the user defaults to 'elastic' (override with ELASTICSEARCH_USER).
+
 Usage:
     python diaygeia/index_diavgeia_dataset.py --limit 50000
     python diaygeia/index_diavgeia_dataset.py --limit 200000 --recreate
@@ -126,9 +130,12 @@ def main():
     except ImportError:
         sys.exit("Missing dependency: pip install datasets  (see requirements.txt)")
 
-    es = Elasticsearch(args.es)
+    es_password = os.getenv("ELASTICSEARCH_PASSWORD") or os.getenv("ELASTIC_PASSWORD")
+    es_auth = (os.getenv("ELASTICSEARCH_USER", "elastic"), es_password) if es_password else None
+    es = Elasticsearch(args.es, http_auth=es_auth)
     if not es.ping():
-        sys.exit(f"Cannot reach Elasticsearch at {args.es} — is the stack up?")
+        sys.exit(f"Cannot reach Elasticsearch at {args.es} — is the stack up, "
+                 "and is ELASTIC_PASSWORD exported?")
 
     if args.recreate and es.indices.exists(index=args.index):
         print(f"Deleting existing index '{args.index}'...")

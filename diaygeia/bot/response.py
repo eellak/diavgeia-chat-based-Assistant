@@ -78,9 +78,12 @@ class DiaygeiaBot:
         self.index_name = name
 
         es_host = os.getenv("ELASTICSEARCH_HOST", "localhost")
+        es_password = os.getenv("ELASTICSEARCH_PASSWORD") or os.getenv("ELASTIC_PASSWORD")
+        es_auth = (os.getenv("ELASTICSEARCH_USER", "elastic"), es_password) if es_password else None
         try:
             self.client = Elasticsearch(
                 hosts=[{"host": es_host, "port": 9200}],
+                http_auth=es_auth,
                 timeout=30,
                 max_retries=10,
                 retry_on_timeout=True,
@@ -90,6 +93,7 @@ class DiaygeiaBot:
                     self.logger.warning("Failed to connect to localhost:9200, trying elasticsearch:9200...")
                     self.client = Elasticsearch(
                         hosts=[{"host": "elasticsearch", "port": 9200}],
+                        http_auth=es_auth,
                         timeout=30,
                         max_retries=10,
                         retry_on_timeout=True,

@@ -1,0 +1,10 @@
+# Never bake secrets or local runtime state into the image.
+# (secrets/gcp-sa.json is bind-mounted at runtime by docker-compose.yml instead.)
+.env
+secrets/
+streamlit_ui/conversations.json
+
+# Not needed at runtime
+.git/
+**/__pycache__/
+**/.DS_Store

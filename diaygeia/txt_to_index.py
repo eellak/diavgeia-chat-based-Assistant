@@ -7,7 +7,11 @@ from elasticsearch import Elasticsearch
 
 ###
 # Create a connection to Elasticsearch
-es = Elasticsearch("http://localhost:9200")
+es_password = os.getenv("ELASTICSEARCH_PASSWORD") or os.getenv("ELASTIC_PASSWORD")
+es = Elasticsearch(
+    f"http://{os.getenv('ELASTICSEARCH_HOST', 'localhost')}:9200",
+    http_auth=(os.getenv("ELASTICSEARCH_USER", "elastic"), es_password) if es_password else None,
+)
 
 # Define the index configuration and mappings (if needed)
 index_config = {

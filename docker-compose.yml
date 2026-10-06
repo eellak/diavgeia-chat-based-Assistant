@@ -1,10 +1,16 @@
 services:
 
+  # Secrets come from .env (gitignored) — copy .env.example to .env and fill it in.
+  # Compose refuses to start while ELASTIC_PASSWORD / REDIS_PASSWORD are unset.
+  #
+  # Network exposure: Redis has NO host port (reachable only on the internal Docker
+  # network); the other services are published on 127.0.0.1 only. To serve the UI
+  # publicly, put a reverse proxy with TLS in front of it — never publish ES/Redis.
+
   redis:
     container_name: redis
     image: redis:latest
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (see .env.example)}"]
     volumes:
       - redis_data:/data
 
@@ -12,10 +18,12 @@ services:
     container_name: elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:7.11.0
     environment:
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env (see .env.example)}
       - "discovery.type=single-node"
     ports:
-      - "9200:9200"
+      # localhost only — used by the host-side indexing commands in the README
+      - "127.0.0.1:9200:9200"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
       - elasticsearch-logs:/usr/share/elasticsearch/logs
@@ -25,10 +33,12 @@ services:
     image: docker.elastic.co/kibana/kibana:7.11.0
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env (see .env.example)}
     depends_on:
       - elasticsearch
     ports:
-      - "5601:5601"
+      - "127.0.0.1:5601:5601"
 
   streamlit:
     container_name: streamlit-ui
@@ -37,8 +47,11 @@ services:
       dockerfile: ./Dockerfile
     environment:
       - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_USER=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env (see .env.example)}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (see .env.example)}
       - GOOGLE_CLOUD_PROJECT=llm-reasoning-475315
       - GOOGLE_CLOUD_LOCATION=us-central1
       - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-sa.json
@@ -50,7 +63,7 @@ services:
       - elasticsearch
       - redis
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     command: streamlit run streamlit_ui/streamlit_app_v2.py --server.address=0.0.0.0 --server.port=8501
 
 volumes:

@@ -33,9 +33,12 @@ CASES = [
 
 
 def main():
-    es = Elasticsearch(os.getenv("ELASTICSEARCH_URL", "http://localhost:9200"))
+    es_password = os.getenv("ELASTICSEARCH_PASSWORD") or os.getenv("ELASTIC_PASSWORD")
+    es_auth = (os.getenv("ELASTICSEARCH_USER", "elastic"), es_password) if es_password else None
+    es = Elasticsearch(os.getenv("ELASTICSEARCH_URL", "http://localhost:9200"), http_auth=es_auth)
     if not es.ping():
-        raise SystemExit("Cannot reach Elasticsearch at localhost:9200 — is the stack up?")
+        raise SystemExit("Cannot reach Elasticsearch at localhost:9200 — is the stack up, "
+                         "and is ELASTIC_PASSWORD exported?")
     index = os.getenv("INDEX", "diaygeia")
 
     for question, spec in CASES:
