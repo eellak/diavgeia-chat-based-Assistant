@@ -2,7 +2,6 @@
 DiavgeiaAssistant — Modern UI (v2)
 
 A polished Streamlit interface for the RAG-based Diaugeia assistant.
-The original streamlit_app_demo.py is preserved unchanged as a checkpoint.
 """
 import sys
 from pathlib import Path
@@ -16,7 +15,6 @@ import streamlit as st
 import uuid
 import time
 from datetime import datetime
-import json
 from dotenv import load_dotenv
 import pandas as pd
 import plotly.express as px
@@ -34,8 +32,6 @@ _user_avatar_path = SCRIPT_DIR / "assets" / "user_icon.png"
 _bot_avatar_path = SCRIPT_DIR / "assets" / "bot_icon.png"
 USER_AVATAR = str(_user_avatar_path) if _user_avatar_path.exists() else "👤"
 BOT_AVATAR = str(_bot_avatar_path) if _bot_avatar_path.exists() else "🤖"
-
-CONVERSATIONS_FILE = SCRIPT_DIR / "conversations.json"
 
 # Theme palette — single source of truth
 PRIMARY = "#4F46E5"
@@ -440,24 +436,15 @@ st.markdown(f"""
 # ----------------------------------------------------------------------------
 # Session state init
 # ----------------------------------------------------------------------------
+# Session isolation: each browser session gets its own server-generated id and its
+# own in-memory conversation list. The id is deliberately NOT taken from the URL
+# (?session_id=...), so a shared or guessed link can never reopen someone else's
+# chat, and nothing is written to a file shared between visitors.
 if "session_id" not in st.session_state:
-    try:
-        query_params = st.experimental_get_query_params()
-        if "session_id" in query_params:
-            st.session_state.session_id = query_params["session_id"][0]
-        else:
-            new_session_id = str(uuid.uuid4())
-            st.session_state.session_id = new_session_id
-            st.experimental_set_query_params(session_id=new_session_id)
-    except Exception:
-        st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.session_id = str(uuid.uuid4())
 
 if "conversations" not in st.session_state:
-    if CONVERSATIONS_FILE.exists():
-        with open(CONVERSATIONS_FILE, "r", encoding="utf-8") as f:
-            st.session_state.conversations = json.load(f)
-    else:
-        st.session_state.conversations = {}
+    st.session_state.conversations = {}
 
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = str(int(time.time()))
@@ -477,10 +464,6 @@ if "pending_prompt" not in st.session_state:
 # ----------------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------------
-def save_conversations():
-    with open(CONVERSATIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(st.session_state.conversations, f, ensure_ascii=False, indent=2)
-
 def save_current_conversation():
     if len(st.session_state.messages) > 0:
         title = "Νέα Συνομιλία"
@@ -494,7 +477,6 @@ def save_current_conversation():
             "timestamp": int(time.time()),
             "session_id": st.session_state.session_id,
         }
-        save_conversations()
 
 def load_conversation(chat_id):
     save_current_conversation()
@@ -509,7 +491,6 @@ def load_conversation(chat_id):
 def delete_conversation(chat_id):
     if chat_id in st.session_state.conversations:
         del st.session_state.conversations[chat_id]
-        save_conversations()
         if chat_id == st.session_state.current_chat_id:
             new_chat()
         else:
@@ -963,8 +944,10 @@ elif st.session_state.page == "info":
             | Data | [Diavgeia Open Data](https://diavgeia.gov.gr) |
 
             ### 🔒 Ιδιωτικότητα
-            Οι συνομιλίες αποθηκεύονται **τοπικά** (σε `conversations.json`) και δεν αποστέλλονται
-            σε τρίτους πέρα από τα queries προς το LLM.
+            Οι συνομιλίες σας κρατούνται **μόνο στην τρέχουσα συνεδρία του browser σας** — δεν
+            αποθηκεύονται σε κοινό αρχείο και δεν είναι ορατές σε άλλους χρήστες. Το ιστορικό
+            του bot λήγει αυτόματα μετά από 24 ώρες, και δεν αποστέλλεται σε τρίτους πέρα από
+            τα ερωτήματα προς το LLM.
             """
         )
 

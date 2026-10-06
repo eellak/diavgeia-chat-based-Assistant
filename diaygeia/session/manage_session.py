@@ -1,4 +1,5 @@
 import logging
+import os
 import zlib
 from datetime import datetime as dt
 
@@ -9,6 +10,9 @@ from diaygeia.data_io.redis.engine import create_redis_engine
 from diaygeia.domain import Conversation
 
 DATETIME_FORMAT_STR = "%d/%m/%Y %H:%M:%S"
+
+# Chat history expires automatically (data minimisation); each new turn renews it.
+SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", 24 * 3600))
 
 
 class SessionManager:
@@ -72,7 +76,7 @@ class SessionManager:
             )
             key = session_id
             json_s = zlib.compress(user_conversation.to_json().encode("utf-8"))
-            self.engine.set(key, json_s)
+            self.engine.set(key, json_s, ex=SESSION_TTL_SECONDS)
         except Exception as e:
             self.logger.warning(f"Could not update user session due to {e}")
 
