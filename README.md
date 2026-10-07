@@ -278,7 +278,8 @@ docker compose exec streamlit python diaygeia/txt_to_index.py
   Elasticsearch, Kibana and the UI listen on `127.0.0.1` only.
 - **Isolated sessions.** Each browser session sees only its own chats — nothing is
   shared on disk, and the session id is generated server-side (never taken from the
-  URL). The bot's per-session history in Redis expires after 24 h (`SESSION_TTL_SECONDS`).
+  URL). The bot's per-session history in Redis is stored under `session:<uuid>` keys
+  (only well-formed UUIDs are accepted) and expires after 24 h (`SESSION_TTL_SECONDS`).
 - **No secrets in images.** `.dockerignore` keeps `.env` and `secrets/` out of the
   Docker image; the GCP key is mounted at runtime instead.
 - **Deploying publicly?** Don't publish the service ports. Put the UI behind a reverse

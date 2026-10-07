@@ -1,5 +1,6 @@
 import logging
 import os
+import uuid
 import zlib
 from datetime import datetime as dt
 
@@ -14,6 +15,24 @@ DATETIME_FORMAT_STR = "%d/%m/%Y %H:%M:%S"
 # Chat history expires automatically (data minimisation); each new turn renews it.
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", 24 * 3600))
 
+SESSION_KEY_PREFIX = "session:"
+
+
+def _session_key(session_id):
+    """Redis key for a chat session: ``session:<uuid>``.
+
+    Only a canonical UUID (the lowercase, hyphenated form ``str(uuid.uuid4())``
+    produces) is accepted, so a session id can never address any other Redis key.
+    Session ids are generated server-side; this closes the pattern regardless.
+    """
+    try:
+        canonical = str(uuid.UUID(str(session_id)))
+    except (ValueError, TypeError, AttributeError):
+        canonical = None
+    if canonical is None or canonical != session_id:
+        raise ValueError("invalid session id")
+    return SESSION_KEY_PREFIX + canonical
+
 
 class SessionManager:
     def __init__(self, logger=None):
@@ -24,7 +43,7 @@ class SessionManager:
 
     def get_user_session(self, session_id):
         try:
-            key = session_id
+            key = _session_key(session_id)
             if self.engine.get(key):
                 result = Conversation(
                     pd.read_json(zlib.decompress(self.engine.get(key)).decode("utf-8"))
@@ -39,7 +58,7 @@ class SessionManager:
 
     def reset_user_session(self, session_id):
         try:
-            key = session_id
+            key = _session_key(session_id)
             self.engine.delete(key)
         except Exception as e:
             self.logger.warning(f"Could not reset user session due to {e}")
@@ -74,7 +93,7 @@ class SessionManager:
                     ignore_index=True,
                 )
             )
-            key = session_id
+            key = _session_key(session_id)
             json_s = zlib.compress(user_conversation.to_json().encode("utf-8"))
             self.engine.set(key, json_s, ex=SESSION_TTL_SECONDS)
         except Exception as e:
