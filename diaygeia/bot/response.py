@@ -82,9 +82,9 @@ class DiaygeiaBot:
         es_auth = (os.getenv("ELASTICSEARCH_USER", "elastic"), es_password) if es_password else None
         try:
             self.client = Elasticsearch(
-                hosts=[{"host": es_host, "port": 9200}],
-                http_auth=es_auth,
-                timeout=30,
+                hosts=[{"scheme": "http", "host": es_host, "port": 9200}],
+                basic_auth=es_auth,
+                request_timeout=30,
                 max_retries=10,
                 retry_on_timeout=True,
             )
@@ -92,9 +92,9 @@ class DiaygeiaBot:
                 if es_host == "localhost":
                     self.logger.warning("Failed to connect to localhost:9200, trying elasticsearch:9200...")
                     self.client = Elasticsearch(
-                        hosts=[{"host": "elasticsearch", "port": 9200}],
-                        http_auth=es_auth,
-                        timeout=30,
+                        hosts=[{"scheme": "http", "host": "elasticsearch", "port": 9200}],
+                        basic_auth=es_auth,
+                        request_timeout=30,
                         max_retries=10,
                         retry_on_timeout=True,
                     )
@@ -107,8 +107,8 @@ class DiaygeiaBot:
             raise
 
     def get_context(self, question: str, k: int = NUM_RESULTS):
-        search_query = {"query": {"match": {"content": question}}}
-        resp = self.client.search(index=self.index_name, body=search_query, size=k)
+        search_query = {"match": {"content": question}}
+        resp = self.client.search(index=self.index_name, query=search_query, size=k)
         return [{"id": hit['_id'], "content": hit['_source']['content']} for hit in resp['hits']['hits']]
 
     def get_context_multi(self, question: str, k: int = NUM_RESULTS,
@@ -125,9 +125,9 @@ class DiaygeiaBot:
         if the reranker cannot load, it degrades gracefully to Tier-0 order.
         """
         size = candidates if rerank else k
-        search_query = {"query": {"multi_match": {"query": question,
-                                                  "fields": ["content", "subject^2"]}}}
-        resp = self.client.search(index=self.index_name, body=search_query, size=size)
+        search_query = {"multi_match": {"query": question,
+                                         "fields": ["content", "subject^2"]}}
+        resp = self.client.search(index=self.index_name, query=search_query, size=size)
         hits = resp['hits']['hits']
         if not hits:
             return []

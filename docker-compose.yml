@@ -1,7 +1,7 @@
 services:
 
   # Secrets come from .env (gitignored) — copy .env.example to .env and fill it in.
-  # Compose refuses to start while ELASTIC_PASSWORD / REDIS_PASSWORD are unset.
+  # Compose refuses to start while ELASTIC_PASSWORD / KIBANA_PASSWORD / REDIS_PASSWORD are unset.
   #
   # Network exposure: Redis has NO host port (reachable only on the internal Docker
   # network); the other services are published on 127.0.0.1 only. To serve the UI
@@ -9,34 +9,68 @@ services:
 
   redis:
     container_name: redis
-    image: redis:latest
+    image: redis:8.10.2
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (see .env.example)}"]
     volumes:
       - redis_data:/data
 
   elasticsearch:
     container_name: elasticsearch
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.11.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5
     environment:
       - xpack.security.enabled=true
+      # Plain HTTP is acceptable here only because port 9200 is reachable just from the
+      # internal Docker network and 127.0.0.1 (see ports). Enable TLS before exposing it.
+      - xpack.security.http.ssl.enabled=false
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env (see .env.example)}
       - "discovery.type=single-node"
+      # Fixed heap, sized for a laptop and an index of ~50k decisions. Without it,
+      # Elasticsearch takes half of Docker's memory and can be killed (out of memory)
+      # alongside Kibana and the app. Raise it for larger corpora.
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       # localhost only — used by the host-side indexing commands in the README
       - "127.0.0.1:9200:9200"
     volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
+      # New volume for 9.x: Elasticsearch 9 cannot open the 7.11 data files, so the index
+      # is rebuilt with the loader (see README). The old 7.x volume is left untouched.
+      - elasticsearch9-data:/usr/share/elasticsearch/data
       - elasticsearch-logs:/usr/share/elasticsearch/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -u \"elastic:$${ELASTIC_PASSWORD}\" \"http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s\" >/dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  # One-shot: Kibana 8+ may not log in as the 'elastic' superuser, so give its own
+  # built-in 'kibana_system' user the password from .env, then exit.
+  setup:
+    container_name: es-setup
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env (see .env.example)}
+      - KIBANA_PASSWORD=${KIBANA_PASSWORD:?Set KIBANA_PASSWORD in .env (see .env.example)}
+    command:
+      - bash
+      - -c
+      - |
+        until curl -fsS -o /dev/null -u "elastic:$${ELASTIC_PASSWORD}" -X POST "http://elasticsearch:9200/_security/user/kibana_system/_password" -H "Content-Type: application/json" -d "{\"password\":\"$${KIBANA_PASSWORD}\"}"; do echo "waiting for Elasticsearch..."; sleep 5; done
+        echo "kibana_system password set"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: "no"
 
   kibana:
     container_name: kibana
-    image: docker.elastic.co/kibana/kibana:7.11.0
+    image: docker.elastic.co/kibana/kibana:9.5.5
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env (see .env.example)}
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD:?Set KIBANA_PASSWORD in .env (see .env.example)}
     depends_on:
-      - elasticsearch
+      setup:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:5601:5601"
 
@@ -60,14 +94,16 @@ services:
       # Put your service-account JSON at ./secrets/gcp-sa.json (gitignored).
       - ./secrets/gcp-sa.json:/app/secrets/gcp-sa.json:ro
     depends_on:
-      - elasticsearch
-      - redis
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "127.0.0.1:8501:8501"
     command: streamlit run streamlit_ui/streamlit_app_v2.py --server.address=0.0.0.0 --server.port=8501
 
 volumes:
-  elasticsearch-data:
+  elasticsearch9-data:
     driver: local
   elasticsearch-logs:
     driver: local

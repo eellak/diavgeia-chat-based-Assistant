@@ -142,8 +142,8 @@ def warm_org_cache(es, index, size=1000):
     Run once (it hits the OpenData API per new id); afterwards name<->id lookups
     are instant from disk. Returns a small summary dict.
     """
-    resp = es.search(index=index, body={
-        "size": 0, "aggs": {"o": {"terms": {"field": "organization_id", "size": size}}}})
+    resp = es.search(index=index, size=0,
+                     aggs={"o": {"terms": {"field": "organization_id", "size": size}}})
     ids = [b["key"] for b in resp["aggregations"]["o"]["buckets"]]
     cache = _orgs_cache()
     new = 0

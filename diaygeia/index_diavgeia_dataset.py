@@ -132,7 +132,7 @@ def main():
 
     es_password = os.getenv("ELASTICSEARCH_PASSWORD") or os.getenv("ELASTIC_PASSWORD")
     es_auth = (os.getenv("ELASTICSEARCH_USER", "elastic"), es_password) if es_password else None
-    es = Elasticsearch(args.es, http_auth=es_auth)
+    es = Elasticsearch(args.es, basic_auth=es_auth)
     if not es.ping():
         sys.exit(f"Cannot reach Elasticsearch at {args.es} — is the stack up, "
                  "and is ELASTIC_PASSWORD exported?")
@@ -142,7 +142,8 @@ def main():
         es.indices.delete(index=args.index)
     if not es.indices.exists(index=args.index):
         print(f"Creating index '{args.index}' (Greek analyzer + metadata fields)...")
-        es.indices.create(index=args.index, body=INDEX_CONFIG)
+        es.indices.create(index=args.index, settings=INDEX_CONFIG["settings"],
+                          mappings=INDEX_CONFIG["mappings"])
 
     print(f"Streaming '{args.dataset}' [{args.split}] — indexing up to {args.limit:,} docs...")
     try:

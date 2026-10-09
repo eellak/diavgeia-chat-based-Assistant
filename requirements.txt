@@ -8,7 +8,7 @@ vertexai==1.71.1
 python-dotenv==1.0.1
 
 # Retrieval + session storage
-elasticsearch==7.17.9
+elasticsearch==9.5.1
 redis==4.1.0
 
 # Dataset loader — stream the public glossAPI/diavgeia dataset into Elasticsearch

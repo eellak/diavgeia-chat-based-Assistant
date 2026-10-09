@@ -124,7 +124,7 @@ with `ELASTIC_PASSWORD` exported from your `.env`:
 import os
 from elasticsearch import Elasticsearch
 from diaygeia.aggregation import diavgeia_lookup as lk
-es = Elasticsearch("http://localhost:9200", http_auth=("elastic", os.environ["ELASTIC_PASSWORD"]))
+es = Elasticsearch("http://localhost:9200", basic_auth=("elastic", os.environ["ELASTIC_PASSWORD"]))
 lk.warm_org_cache(es, "diaygeia")
 ```
 
@@ -221,7 +221,7 @@ template and fill in strong random values (compose refuses to start without them
 
 ```bash
 cp .env.example .env
-openssl rand -hex 24      # run twice: paste one into ELASTIC_PASSWORD, one into REDIS_PASSWORD
+openssl rand -hex 24      # run three times: one value each for ELASTIC_PASSWORD, KIBANA_PASSWORD, REDIS_PASSWORD
 ```
 
 ### 3. Build and start the stack
@@ -230,9 +230,15 @@ openssl rand -hex 24      # run twice: paste one into ELASTIC_PASSWORD, one into
 docker compose up --build
 ```
 
-This brings up Redis, Elasticsearch, Kibana, and the Streamlit UI.
+This brings up Redis 8.10, Elasticsearch 9.5 and Kibana 9.5 (a one-shot `setup` step first
+gives Kibana its own `kibana_system` password), and the Streamlit UI.
 UI → http://localhost:8501 · Kibana → http://localhost:5601 (log in as `elastic`).
 Every port is bound to `127.0.0.1`, and Redis is not published on the host at all.
+
+> **Upgrading from the earlier Elasticsearch 7.11 setup?** Elasticsearch 9 cannot open 7.x
+> data, so the stack now uses a new data volume (`elasticsearch9-data`) and the index must be
+> rebuilt once with step 4 below. The old volume is left untouched; delete it when you no
+> longer need it (`docker volume ls`, then `docker volume rm <project>_elasticsearch-data`).
 
 ### 4. Populate Elasticsearch
 
@@ -259,6 +265,11 @@ The loader indexes each decision's Markdown text (with a Greek analyzer) plus
 structured metadata — ΑΔΑ, organisation, decision type, dates, thematic
 categories. Use `--es <url>` (or `ELASTICSEARCH_URL`) to target a different
 Elasticsearch, and `--help` for all options.
+
+> **Indexing stopped with exit code 137?** That means it ran out of memory — Elasticsearch,
+> Kibana, the UI and the loader share Docker's memory, and ~4 GB is tight. Give Docker more
+> memory (Docker Desktop → Settings → Resources), or pause Kibana during the load with
+> `docker compose stop kibana` and bring it back afterwards with `docker compose start kibana`.
 
 **Option B — index your own `.txt` files.**
 Mount a folder of `.txt` decisions into the running container and run the

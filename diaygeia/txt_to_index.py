@@ -10,7 +10,7 @@ from elasticsearch import Elasticsearch
 es_password = os.getenv("ELASTICSEARCH_PASSWORD") or os.getenv("ELASTIC_PASSWORD")
 es = Elasticsearch(
     f"http://{os.getenv('ELASTICSEARCH_HOST', 'localhost')}:9200",
-    http_auth=(os.getenv("ELASTICSEARCH_USER", "elastic"), es_password) if es_password else None,
+    basic_auth=(os.getenv("ELASTICSEARCH_USER", "elastic"), es_password) if es_password else None,
 )
 
 # Define the index configuration and mappings (if needed)
@@ -31,7 +31,8 @@ index_name = "diaygeia"
 
 # Create the index if it doesn't exist
 if not es.indices.exists(index=index_name):
-    es.indices.create(index=index_name, body=index_config)
+    es.indices.create(index=index_name, settings=index_config["settings"],
+                      mappings=index_config["mappings"])
 
 
 # Iterate over downloaded data and index each document

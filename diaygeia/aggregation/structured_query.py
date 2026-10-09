@@ -54,12 +54,11 @@ def execute(es, index, spec):
     query = _build_query(spec.get("filters", {}))
     if spec.get("op") == "group_by":
         field = spec["group_field"]
-        body = {"size": 0, "query": query,
-                "aggs": {"g": {"terms": {"field": field, "size": spec.get("top", 10)}}}}
-        buckets = es.search(index=index, body=body)["aggregations"]["g"]["buckets"]
+        aggs = {"g": {"terms": {"field": field, "size": spec.get("top", 10)}}}
+        buckets = es.search(index=index, size=0, query=query, aggs=aggs)["aggregations"]["g"]["buckets"]
         return {"op": "group_by", "group_field": field,
                 "buckets": [(b["key"], b["doc_count"]) for b in buckets]}
-    n = es.count(index=index, body={"query": query})["count"]
+    n = es.count(index=index, query=query)["count"]
     return {"op": "count", "count": n}
 
 
