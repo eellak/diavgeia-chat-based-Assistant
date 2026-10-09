@@ -1,5 +1,5 @@
 # Streamlit UI
-streamlit==1.29.0
+streamlit==1.54.0
 plotly==5.18.0
 
 # Core assistant — Gemini via Vertex AI
