@@ -5,7 +5,7 @@ plotly==5.18.0
 # Core assistant — Gemini via Vertex AI
 google-cloud-aiplatform==1.71.1
 vertexai==1.71.1
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # Retrieval + session storage
 elasticsearch==9.5.1
