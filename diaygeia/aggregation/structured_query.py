@@ -100,10 +100,10 @@ def format_greek(spec, result):
     field = result["group_field"]
     if not result["buckets"]:
         return "Δεν βρέθηκαν αποφάσεις για το ερώτημα αυτό."
-    lines = [f"• {_label_for(field, key)}: {_num(cnt)}" for key, cnt in result["buckets"]]
+    lines = [f"- {_label_for(field, key)}: {_num(cnt)}" for key, cnt in result["buckets"]]
     unit = {"decision_type_id": "τύπο", "organization_id": "φορέα",
             "thematic_category_ids": "θεματική κατηγορία"}.get(field, field)
-    return (f"Κατανομή αποφάσεων{_filters_phrase(filters)} ανά {unit}:\n" + "\n".join(lines))
+    return (f"Κατανομή αποφάσεων{_filters_phrase(filters)} ανά {unit}:\n\n" + "\n".join(lines))
 
 
 def answer(es, index, spec):
